@@ -12,8 +12,8 @@ def on_click(x, y, button, pressed):
         print(f"鼠标点击位置：({x}, {y})，按键：{button}")
     
     # 可选：按右键退出监听（示例）
-    # if button == button.right:
-    #     return False  # 返回False终止监听
+    if button == button.right:
+        return False  # 返回False终止监听
 
 # 启动监听
 with Listener(on_click=on_click) as listener:

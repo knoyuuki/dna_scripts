@@ -6,20 +6,20 @@ from pynput import mouse, keyboard
 CONFIG = {
     'sequence': {
         # 主循环间隔时间(秒) - 3分钟 = 180秒
-        'interval': 80,
+        'interval': 85,
         # 重复repeat_options的次数
         'repeat_count': 1,
         # 按键持续时间配置(秒)
         'hold_durations': {
-            'w_first': 3.5,
-            'a': 8,
-            'w_second': 6.5,
-            'w_third': 26,  # 这个时段将添加空格键间隔按压
-            'w_last': 4.5,
-            'a2': 2,
-            'w2': 1,
-            'a3': 2.5,
-            's1': 5
+'w_first': 3.5,
+'a': 8,
+'w_second': 7,
+'w_third': 25,  # 这个时段将添加空格键间隔按压
+'w_last': 4.5,
+'a2': 2,
+'w2': 1,
+'a3': 2.5,
+'s1': 5
         },
         # 空格键间隔时间(秒) - 新增配置
         'space_interval': 2,  # 每2秒按一次空格键
@@ -127,7 +127,7 @@ class AutoGameController:
         if not self.running: return
         
         # 等待5秒 进入副本
-        time.sleep(5)
+        time.sleep(6)
         # 2. 按住w键
         # print(f"按住w键{self.config['sequence']['hold_durations']['w_first']}秒")
         self._wait_if_paused()
