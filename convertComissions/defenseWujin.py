@@ -3,7 +3,7 @@ import threading
 from pynput import mouse, keyboard
 
 # --- 配置区 ---
-SELECT_IRAI = 2
+SELECT_IRAI = 1
 CONFIG = {
     'keyboard': {
         'enabled': True,

@@ -5,30 +5,23 @@ from pynput import mouse, keyboard
 # --- 配置区 ---
 CONFIG = {
     'sequence': {
-        # 主循环间隔时间(秒) - 3分钟 = 180秒
-        'interval': 80,
-        # 重复repeat_options的次数
+        # 主循环间隔时间(秒)
+        'interval': 85,
         'repeat_count': 1,
-        # 按键持续时间配置(秒)
         'hold_durations': {
-            'w_first': 3.5,
-            'a': 8,
-            'w_second': 6.5,
-            'w_third': 26,  # 这个时段将添加空格键间隔按压
-            'w_last': 4.5,
-            'a2': 2,
-            'w2': 1,
-            'a3': 2.5,
-            's1': 5
+            'w_first': 4.5,    # w冲刺4秒
+            'a_first': 4,    # a冲刺4秒
+            'w_second': 0.8,   # w冲刺1秒
+            'a_space': 13,   # a冲刺12秒（带空格）
+            'w_third': 3,    # w冲刺3秒
+            'a_second': 2,   # a冲刺4秒
+            's_first': 3     # s冲刺3秒
         },
-        # 空格键间隔时间(秒) - 新增配置
-        'space_interval': 2,  # 每2秒按一次空格键
-        # 视角转动参数(度)
+        'space_interval': 1,  # 每1秒按一次空格键（修改为1秒间隔）
         'view_rotation': {
-            'left': 90,    # 向左转动角度
-            'up': 45       # 向上转动角度(可根据实际需求调整)
+            'left': 90,
+            'up': 45
         },
-        # 数字按键
         'number_key': '4'
     },
     'mouse': {
@@ -37,12 +30,14 @@ CONFIG = {
             (1477, 829, 'left'),    # 再次挑战 
             (1085, 646, 'left')     # 开始挑战
         ],
-        'move_duration': 0.5  # 移动时间（秒），用于平滑移动
+        'move_duration': 0.5
     },
     'global': {
-        'exit_key': keyboard.Key.esc,
-        'pause_key': keyboard.Key.f1,  # 用于暂停/恢复的按键
-        'start_delay': 5
+        'exit_key': keyboard.Key.f2,  # 退出键改为F2
+        'pause_key': keyboard.Key.f1,
+        'start_delay': 5,
+        # 10分钟检测一次
+        'periodic_interval': 600  # 30分钟 = 1800秒
     }
 }
 # --- 配置区结束 ---
@@ -50,10 +45,11 @@ CONFIG = {
 class AutoGameController:
     def __init__(self, config):
         self.config = config
-        self.running = False  # 程序主开关
-        self.paused = False   # 暂停状态标志
+        self.running = False
+        self.paused = False
         
         self.main_thread = None
+        self.last_periodic_time = time.time()  # 记录上次定期操作时间
         
         self.mouse_controller = mouse.Controller()
         self.keyboard_controller = keyboard.Controller()
@@ -73,13 +69,8 @@ class AutoGameController:
             time.sleep(duration / steps)
 
     def _rotate_view(self, angle, direction):
-        """
-        模拟视角转动
-        angle: 转动角度
-        direction: 'left' 或 'up'
-        """
-        # 估算转动所需的鼠标移动距离(可根据实际灵敏度调整)
-        pixels_per_degree = 2  # 每度对应的像素移动
+        """模拟视角转动"""
+        pixels_per_degree = 2
         move_pixels = angle * pixels_per_degree
         
         start_x, start_y = self.mouse_controller.position
@@ -91,20 +82,122 @@ class AutoGameController:
             target_x = start_x
             target_y = start_y - move_pixels
         
-        self._smooth_move_mouse(target_x, target_y, 0.5)  # 0.5秒内完成转动
+        self._smooth_move_mouse(target_x, target_y, 0.5)
 
     def _wait_if_paused(self):
-        """如果程序处于暂停状态，则循环等待直到恢复"""
+        """暂停状态等待"""
         while self.paused and self.running:
             time.sleep(0.1)
 
+    def _periodic_operation(self):
+        """30分钟定期操作"""
+        print("执行30分钟定期操作...")
+        
+        # 按下ESC键
+        self.keyboard_controller.press(keyboard.Key.esc)
+        time.sleep(0.1)
+        self.keyboard_controller.release(keyboard.Key.esc)
+        print("按下ESC键")
+        
+        # 等待2秒
+        self._sleep_with_pause_check(2)
+        
+        # 点击(1800,854) 退出挑战
+        self._smooth_move_mouse(1800, 854, self.config['mouse']['move_duration'])
+        self.mouse_controller.click(mouse.Button.left, 1)
+        print("点击退出挑战")
+        time.sleep(0.5)
+        
+        # 点击(1086,563) 确认
+        self._smooth_move_mouse(1086, 563, self.config['mouse']['move_duration'])
+        self.mouse_controller.click(mouse.Button.left, 1)
+        print("点击确认")
+        time.sleep(0.5)
+        
+        # 等待5秒
+        self._sleep_with_pause_check(5)
+        
+        # 更新上次执行时间
+        self.last_periodic_time = time.time()
+        print("定期操作完成，继续执行序列")
+
+    # 新增：基础冲刺方法（键盘按下0.2秒后按鼠标右键）
+    def _sprint(self, key, duration):
+        """按住指定键盘按键后，延迟0.2秒按住鼠标右键进行冲刺"""
+        self._wait_if_paused()
+        if not self.running:
+            return
+            
+        # 先按下键盘按键
+        self.keyboard_controller.press(key)
+        print(f"按下{key}键，准备冲刺")
+        
+        # 延迟0.2秒
+        self._sleep_with_pause_check(0.2)
+        
+        # 再按下鼠标右键
+        self.mouse_controller.press(mouse.Button.right)
+        print(f"0.2秒后按下鼠标右键，开始{key}键冲刺，持续{duration}秒")
+        
+        # 保持冲刺状态（总时长减去0.2秒延迟）
+        remaining_duration = max(0, duration - 0.2)
+        self._sleep_with_pause_check(remaining_duration)
+        
+        # 释放按键（先释放鼠标右键，再释放键盘按键）
+        self.mouse_controller.release(mouse.Button.right)
+        self.keyboard_controller.release(key)
+        print(f"{key}键冲刺结束")
+
+    # 新增：带空格键的冲刺方法
+    def _sprint_with_space(self, key, duration, space_interval):
+        """按住指定键盘按键后延迟0.2秒按鼠标右键，同时间隔按空格键"""
+        self._wait_if_paused()
+        if not self.running:
+            return
+            
+        # 先按下键盘按键
+        self.keyboard_controller.press(key)
+        print(f"按下{key}键，准备带空格冲刺")
+        
+        # 延迟0.2秒
+        self._sleep_with_pause_check(0.2)
+        
+        # 再按下鼠标右键
+        self.mouse_controller.press(mouse.Button.right)
+        print(f"0.2秒后按下鼠标右键，开始{key}键带空格冲刺，持续{duration}秒")
+        
+        # 计算剩余有效时间（总时长减去0.2秒延迟）
+        effective_duration = max(0, duration - 0.2)
+        start_time = time.time()
+        elapsed = 0
+        press_count = 0
+        
+        while elapsed < effective_duration and self.running:
+            self._wait_if_paused()
+            if not self.running:
+                break
+                
+            if elapsed >= (press_count + 1) * space_interval:
+                self.keyboard_controller.press(keyboard.Key.space)
+                time.sleep(0.1)
+                self.keyboard_controller.release(keyboard.Key.space)
+                press_count += 1
+                print(f"第{press_count}次按下空格键")
+                
+            elapsed = time.time() - start_time
+            time.sleep(0.1)
+            
+        # 释放按键
+        self.mouse_controller.release(mouse.Button.right)
+        self.keyboard_controller.release(key)
+        print(f"{key}键带空格冲刺结束")
+
     def _execute_sequence(self):
         """执行单次操作序列"""
-        # 1. 重复repeat_options指定次数
+        # 1. 执行鼠标操作
         repeat_count = self.config['sequence']['repeat_count']
         repeat_ops = self.config['mouse']['repeat_options']
         
-        # print(f"开始执行repeat_options，共{repeat_count}次")
         for _ in range(repeat_count):
             self._wait_if_paused()
             if not self.running: break
@@ -122,92 +215,50 @@ class AutoGameController:
                 elif click_type == 'double':
                     self.mouse_controller.click(mouse.Button.left, 2)
                 
-                time.sleep(0.5)  # 点击后短暂停顿
+                time.sleep(0.5)
 
         if not self.running: return
         
+        # 检查是否需要执行30分钟定期操作
+        current_time = time.time()
+        if current_time - self.last_periodic_time >= self.config['global']['periodic_interval']:
+            self._periodic_operation()
+            return 1
+        
         # 等待5秒 进入副本
-        time.sleep(5)
-        # 2. 按住w键
-        # print(f"按住w键{self.config['sequence']['hold_durations']['w_first']}秒")
-        self._wait_if_paused()
-        self.keyboard_controller.press('w')
-        self._sleep_with_pause_check(self.config['sequence']['hold_durations']['w_first'])
-        self.keyboard_controller.release('w')
+        time.sleep(6)
 
-        # 3. 按住a键
-        # print(f"按住a键{self.config['sequence']['hold_durations']['a']}秒")
-        self._wait_if_paused()
-        self.keyboard_controller.press('a')
-        self._sleep_with_pause_check(self.config['sequence']['hold_durations']['a'])
-        self.keyboard_controller.release('a')
-
-        # 4. 按住w键
-        # print(f"按住w键{self.config['sequence']['hold_durations']['w_second']}秒")
-        self._wait_if_paused()
-        self.keyboard_controller.press('w')
-        self._sleep_with_pause_check(self.config['sequence']['hold_durations']['w_second'])
-        self.keyboard_controller.release('w')
-
-        # 6. 按住w键并间隔按压空格键
-        w_third_duration = self.config['sequence']['hold_durations']['w_third']
-        space_interval = self.config['sequence']['space_interval']
-        # print(f"按住w键{w_third_duration}秒，每{space_interval}秒按一次空格键")
-        self._wait_if_paused()
-        self.keyboard_controller.press('a')
         
-        # 计算需要按空格键的次数和时间点
-        start_time = time.time()
-        elapsed = 0
-        press_count = 0
-        
-        while elapsed < w_third_duration and self.running:
-            self._wait_if_paused()
-            if not self.running:
-                break
-                
-            # 每隔指定间隔按一次空格键
-            if elapsed >= (press_count + 1) * space_interval:
-                # print(f"第{press_count + 1}次按空格键")
-                self.keyboard_controller.press(keyboard.Key.space)
-                time.sleep(0.1)  # 短暂按住
-                self.keyboard_controller.release(keyboard.Key.space)
-                press_count += 1
-                # 间隔1s
-                time.sleep
-                
-            # 检查是否到达总时长
-            elapsed = time.time() - start_time
-            time.sleep(0.1)  # 短间隔检查
-            
-        self.keyboard_controller.release('a')
+        # 执行新的冲刺序列
+        # w 冲刺（同时按住鼠标右键）4秒
+        self._sprint('w', self.config['sequence']['hold_durations']['w_first'])
 
-        # 9. 按住w键
-        print(f"按住w键{self.config['sequence']['hold_durations']['w_last']}秒")
-        self._wait_if_paused()
-        self.keyboard_controller.press('w')
-        self._sleep_with_pause_check(self.config['sequence']['hold_durations']['w_last'])
-        self.keyboard_controller.release('w')
+        # a 冲刺 4秒
+        self._sprint('a', self.config['sequence']['hold_durations']['a_first'])
 
-        # 自定义部分
-        self.keyboard_controller.press('a')
-        self._sleep_with_pause_check(self.config['sequence']['hold_durations']['a2'])
-        self.keyboard_controller.release('a')                   
+        # w 冲刺 1秒
+        self._sprint('w', self.config['sequence']['hold_durations']['w_second'])
 
-        self.keyboard_controller.press('w')
-        self._sleep_with_pause_check(self.config['sequence']['hold_durations']['w2'])
-        self.keyboard_controller.release('w')
+        # a 冲刺 同时间隔1秒不断按下space键 12秒
+        self._sprint_with_space(
+            'a', 
+            self.config['sequence']['hold_durations']['a_space'],
+            self.config['sequence']['space_interval']
+        )
 
-        self.keyboard_controller.press('a')
-        self._sleep_with_pause_check(self.config['sequence']['hold_durations']['a3'])
-        self.keyboard_controller.release('a')
+        # w 冲刺 3秒
+        self._sprint('w', self.config['sequence']['hold_durations']['w_third'])
 
-        self.keyboard_controller.press('s')
-        self._sleep_with_pause_check(self.config['sequence']['hold_durations']['s1'])
-        self.keyboard_controller.release('s')
+        # a 冲刺 4秒
+        self._sprint('a', self.config['sequence']['hold_durations']['a_second'])
+
+        # s 冲刺 3秒
+        self._sprint('s', self.config['sequence']['hold_durations']['s_first'])
+
+        return self.config['sequence']['interval']
 
     def _sleep_with_pause_check(self, duration):
-        """带暂停检查的睡眠函数"""
+        """带暂停检查的睡眠"""
         start_time = time.time()
         while time.time() - start_time < duration and self.running:
             if self.paused:
@@ -218,28 +269,30 @@ class AutoGameController:
                 time.sleep(sleep_time)
 
     def main_worker(self):
-        """主工作线程，循环执行操作序列"""
+        """主工作线程"""
         workCount = 0
         while self.running:
             self._wait_if_paused()
             if not self.running: break
             
             # 执行一次完整序列
-            self._execute_sequence()
+            timeInterval = self._execute_sequence()
+            if(not timeInterval or timeInterval <= 0):
+                timeInterval = self.config['sequence']['interval']
             
-            # 等待下一个周期(检查暂停状态)
+            # 等待下一个周期
             workCount += 1
-            print(f"等待{self.config['sequence']['interval']}秒后执行下一轮 当前轮次:{workCount}")
-            self._sleep_with_pause_check(self.config['sequence']['interval'])
+            print(f"等待{timeInterval}秒后执行下一轮 当前轮次:{workCount}")
+            self._sleep_with_pause_check(timeInterval)
 
     def on_press(self, key):
-        """监听键盘按键，用于退出和暂停/恢复"""
+        """键盘监听"""
         if key == self.config['global']['exit_key']:
             print("\n检测到退出按键，正在停止...")
             self.stop()
             return False
         elif key == self.config['global']['pause_key']:
-            self.paused = not self.paused  # 切换暂停状态
+            self.paused = not self.paused
             if self.paused:
                 print("\n程序已暂停。")
             else:
@@ -252,18 +305,17 @@ class AutoGameController:
         time.sleep(self.config['global']['start_delay'])
         
         self.running = True
+        self.last_periodic_time = time.time()  # 初始化定期操作时间
         
-        # 启动主工作线程
         self.main_thread = threading.Thread(target=self.main_worker, daemon=True)
         self.main_thread.start()
         
-        # 启动监听器
         with keyboard.Listener(on_press=self.on_press) as listener:
             listener.join()
 
     def stop(self):
         self.running = False
-        self.paused = False  # 停止时解除暂停，以便线程可以退出
+        self.paused = False
         if self.main_thread:
             self.main_thread.join()
         print("自动操作已停止")
